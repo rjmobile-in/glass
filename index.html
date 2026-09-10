@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RJ Admin | Tempered Glass</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Plus+Jakarta+Sans:wght@700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-base: #09090b; --card-bg: #121b33; --card-border: #1e2d4a;
+      --primary: #f37021; --primary-hover: #d9621a; --primary-alpha: rgba(243, 112, 33, 0.15);
+      --text-main: #f8fafc; --text-soft: #94a3b8; --danger: #ef4444; --success: #10b981; --input-bg: #0a1023;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(--text-main); margin: 0; padding: 20px; }
+    h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; margin-top: 0; }
+    
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 24px; max-width: 800px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .input-field { width: 100%; padding: 14px; border-radius: 8px; border: 1px solid var(--card-border); background: var(--input-bg); color: var(--text-main); margin-bottom: 16px; outline: none; box-sizing: border-box; transition: 0.2s; }
+    .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-alpha); }
+    
+    .btn-primary { background: var(--primary); color: #fff; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+    .btn-primary:active { transform: scale(0.96); }
+    .btn-secondary { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-weight: 600; }
+    .btn-secondary:hover { background: var(--input-bg); }
+    
+    .badge { background: var(--primary-alpha); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .inline-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { text-align: left; padding: 16px 12px; border-bottom: 2px solid var(--card-border); color: var(--text-soft); font-size: 13px; text-transform: uppercase; }
+    td { text-align: left; padding: 16px 12px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    
+    /* Tabs System */
+    .tabs-container { display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 6px; border-radius: 10px; border: 1px solid var(--card-border); }
+    .tab-btn { flex: 1; padding: 12px; text-align: center; background: transparent; border: none; color: var(--text-soft); font-weight: 600; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+    .tab-btn.active { background: var(--primary-alpha); color: var(--primary); }
+
+    /* Checkbox List */
+    .checklist-container { background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 16px; }
+    .check-item { display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; color: var(--text-main); font-size: 14px; border-radius: 6px; transition: 0.2s; }
+    .check-item:hover { background: rgba(255,255,255,0.05); }
+    .check-item input { cursor: pointer; accent-color: var(--primary); width: 16px; height: 16px; }
+
+    /* Modals & Toasts */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .modal-card { background: var(--card-bg); padding: 24px; border-radius: 16px; border: 1px solid var(--card-border); width: 100%; max-width: 400px; text-align: center; }
+    
+    #toast { position: fixed; bottom: -50px; left: 50%; transform: translateX(-50%); background: var(--success); color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; transition: 0.3s; opacity: 0; z-index: 3000; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+    #toast.show { bottom: 30px; opacity: 1; }
+
+    #login-screen, #dashboard { display: none; }
+    .view-section { display: none; }
+    .view-section.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <div id="toast">Saved Successfully!</div>
+
+  <!-- Custom Confirm Modal -->
+  <div id="confirm-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div style="font-size: 40px; margin-bottom: 12px;">⚠️</div>
+      <h3 id="confirm-title" style="margin-bottom: 8px;">Are you sure?</h3>
+      <p id="confirm-msg" style="color: var(--text-soft); font-size: 14px; margin-bottom: 24px;">This action cannot be undone.</p>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn-secondary" style="flex: 1;" onclick="closeConfirm(false)">Cancel</button>
+        <button class="btn-primary" id="confirm-yes-btn" style="flex: 1; background: var(--danger);" onclick="closeConfirm(true)">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 380px; text-align: center;">
+      <h2 style="margin-bottom: 8px;">Workspace Login</h2>
+      <p style="color: var(--text-soft); font-size: 14px; margin-bottom: 24px;">Tempered Glass Inventory</p>
+      <input type="email" id="email" class="input-field" placeholder="Admin Email" value="admin@rjmobile.in" />
+      <input type="password" id="password" class="input-field" placeholder="Enter Password" />
+      <button onclick="login()" id="login-btn" class="btn-primary" style="width: 100%;">Log In</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 16px;">
+      <h2 style="margin: 0;">🛡️ Inventory Admin</h2>
+      <button onclick="logout()" class="btn-secondary" style="padding: 8px 16px; font-size: 13px;">Log Out</button>
+    </div>
+
+    <div class="tabs-container">
+      <button class="tab-btn active" id="tab-glass" onclick="switchView('glass')">🛡️ Manage Glasses</button>
+      <button class="tab-btn" id="tab-phone" onclick="switchView('phone')">📱 Manage Phones</button>
+    </div>
+    
+    <!-- VIEW: GLASSES -->
+    <div id="view-glass" class="view-section active">
+      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 24px;">
+        <h3 id="form-title">Add New Glass Model</h3>
+        <input type="hidden" id="edit-id" />
+        
+        <input type="text" id="glass-name" class="input-field" placeholder="Glass Model (e.g. 11D - Pro)" />
+        
+        <label style="font-size: 12px; font-weight: bold; color: var(--text-soft); display: block; margin-bottom: 8px;">Compatible Phones</label>
+        <input type="text" id="phone-search" class="input-field" placeholder="🔍 Search phone models..." oninput="filterPhones()" style="margin-bottom: 8px; padding: 10px;" />
+        
+        <div class="checklist-container" id="phone-checkbox-list">
+          <div style="text-align:center; color:var(--text-soft); padding:20px;">Loading phones...</div>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <button onclick="saveGlass()" class="btn-primary" id="save-btn" style="flex: 1;">Save Glass</button>
+          <button onclick="resetGlassForm()" class="btn-secondary" style="display:none; flex: 1;" id="cancel-btn">Cancel</button>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table>
+          <thead><tr><th>Glass Model</th><th>Compatible Devices</th><th style="text-align: right;">Actions</th></tr></thead>
+          <tbody id="inventory-list"><tr><td colspan="3" style="text-align:center;">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW: PHONES -->
+    <div id="view-phone" class="view-section">
+      <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 24px;">
+        <h3 id="phone-form-title">Add Phone Model</h3>
+        <input type="hidden" id="edit-phone-id" />
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="new-phone-name" class="input-field" placeholder="e.g. iPhone 15 Pro Max" style="margin: 0; flex: 1;" />
+          <button onclick="savePhoneModel()" class="btn-primary" id="add-phone-btn">Save Phone</button>
+          <button onclick="resetPhoneForm()" class="btn-secondary" id="cancel-phone-btn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table>
+          <thead><tr><th>Phone Model Name</th><th style="text-align: right;">Actions</th></tr></thead>
+          <tbody id="phone-list"><tr><td colspan="2" style="text-align:center;">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SUPABASE SETUP ---
+    var SUPABASE_URL = 'https://erurgcucewsrojvmpvkc.supabase.co';
+    var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVydXJnY3VjZXdzcm9qdm1wdmtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzIyNjIsImV4cCI6MjEwNDYwODI2Mn0.mArA78zqZGuUOgxerlyF8dr6qXCuniPsy3IWRWU1rLE';
+    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let masterPhones = []; 
+    let activeDevicesIds = []; // Stores UUIDs of selected phones
+
+    // --- CUSTOM MODALS & UI ---
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.background = isError ? 'var(--danger)' : 'var(--success)';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    let confirmResolve;
+    function askConfirm(title, msg) {
+      return new Promise((resolve) => {
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-msg').innerText = msg;
+        document.getElementById('confirm-modal').style.display = 'flex';
+        confirmResolve = resolve;
+      });
+    }
+    function closeConfirm(result) {
+      document.getElementById('confirm-modal').style.display = 'none';
+      if (confirmResolve) confirmResolve(result);
+    }
+
+    // Keyboard ENTER Support
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (document.getElementById('confirm-modal').style.display === 'flex') {
+          closeConfirm(true);
+        } else if (document.getElementById('login-screen').style.display !== 'none') {
+          login();
+        } else if (document.getElementById('view-phone').classList.contains('active') && document.activeElement.id === 'new-phone-name') {
+          savePhoneModel();
+        }
+      }
+    });
+
+    // --- AUTH LOGIC ---
+    async function checkUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        await fetchPhones(); 
+        fetchInventory(); 
+      } else {
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('dashboard').style.display = 'none';
+      }
+    }
+    
+    async function login() {
+      const btn = document.getElementById('login-btn'); btn.innerText = "Authenticating..."; btn.disabled = true;
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email: document.getElementById('email').value, 
+        password: document.getElementById('password').value 
+      });
+      if (error) showToast(error.message, true);
+      else checkUser();
+      btn.innerText = "Log In"; btn.disabled = false;
+    }
+
+    async function logout() { await supabase.auth.signOut(); checkUser(); }
+
+    function switchView(view) {
+      document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`view-${view}`).classList.add('active');
+      document.getElementById(`tab-${view}`).classList.add('active');
+    }
+
+    // ==========================================
+    // 📱 PHONE MODELS LOGIC
+    // ==========================================
+    async function fetchPhones() {
+      const { data, error } = await supabase.from('phone_models').select('*').order('name', { ascending: true });
+      const tbody = document.getElementById('phone-list');
+      if (error) { tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color: var(--danger);">Error</td></tr>`; return; }
+      
+      masterPhones = data || [];
+      renderCheckboxes(); 
+      
+      if (masterPhones.length === 0) { 
+        tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding: 40px; color: var(--text-soft);">No phones added.</td></tr>`; 
+        return; 
+      }
+
+      tbody.innerHTML = masterPhones.map(p => `
+        <tr>
+          <td><strong style="color: var(--text-main); font-size: 14px;">${p.name}</strong></td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="btn-secondary" style="padding: 6px 12px; margin-right: 4px; font-size: 12px;" onclick="editPhone('${p.id}', '${p.name}')">✏️ Edit</button>
+            <button class="btn-secondary" style="padding: 6px 12px; font-size: 12px; color: var(--danger); border-color: rgba(239,68,68,0.3);" onclick="deletePhone('${p.id}')">🗑️ Del</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function editPhone(id, name) {
+      document.getElementById('phone-form-title').innerText = "✏️ Edit Phone Model";
+      document.getElementById('edit-phone-id').value = id;
+      document.getElementById('new-phone-name').value = name;
+      document.getElementById('add-phone-btn').innerText = "Update Phone";
+      document.getElementById('cancel-phone-btn').style.display = "inline-block";
+      document.getElementById('new-phone-name').focus();
+    }
+
+    function resetPhoneForm() {
+      document.getElementById('phone-form-title').innerText = "Add Master Phone Model";
+      document.getElementById('edit-phone-id').value = "";
+      document.getElementById('new-phone-name').value = "";
+      document.getElementById('add-phone-btn').innerText = "Save Phone";
+      document.getElementById('cancel-phone-btn').style.display = "none";
+    }
+
+    async function savePhoneModel() {
+      const name = document.getElementById('new-phone-name').value.trim();
+      const id = document.getElementById('edit-phone-id').value;
+      if (!name) return showToast("Enter a phone name", true);
+      
+      const btn = document.getElementById('add-phone-btn'); btn.innerText = "Saving..."; btn.disabled = true;
+
+      let error;
+      if (id) {
+        const res = await supabase.from('phone_models').update({ name }).eq('id', id);
+        error = res.error;
+      } else {
+        const res = await supabase.from('phone_models').insert([{ name }]);
+        error = res.error;
+      }
+      
+      btn.innerText = id ? "Update Phone" : "Save Phone"; btn.disabled = false;
+
+      if (error) showToast(error.message.includes('unique') ? "Phone name already exists!" : "Error saving", true);
+      else {
+        showToast(id ? "Phone Updated!" : "Phone Added!");
+        resetPhoneForm();
+        await fetchPhones();
+        fetchInventory(); // Refresh glass list to update names
+      }
+    }
+
+    async function deletePhone(id) {
+      if (await askConfirm("Delete Phone?", "This will remove it from the database.")) {
+        const { error } = await supabase.from('phone_models').delete().eq('id', id);
+        if(error) showToast("Failed to delete", true);
+        else { showToast("Phone deleted!"); await fetchPhones(); fetchInventory(); }
+      }
+    }
+
+    // ==========================================
+    // 🛡️ GLASS INVENTORY LOGIC (Using UUIDs)
+    // ==========================================
+    function renderCheckboxes(filterText = '') {
+      const container = document.getElementById('phone-checkbox-list');
+      if (masterPhones.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:var(--text-soft); padding:20px;">No phones available. Add them from Manage Phones tab.</div>';
+        return;
+      }
+
+      const filtered = masterPhones.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:var(--text-soft); padding:10px;">No matching phones found.</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(p => `
+        <label class="check-item">
+          <input type="checkbox" value="${p.id}" ${activeDevicesIds.includes(p.id) ? 'checked' : ''} onchange="toggleDevice('${p.id}', this.checked)">
+          <span>${p.name}</span>
+        </label>
+      `).join('');
+    }
+
+    function toggleDevice(phoneId, isChecked) {
+      if (isChecked && !activeDevicesIds.includes(phoneId)) activeDevicesIds.push(phoneId);
+      else if (!isChecked) activeDevicesIds = activeDevicesIds.filter(id => id !== phoneId);
+    }
+
+    function filterPhones() { renderCheckboxes(document.getElementById('phone-search').value); }
+
+    async function fetchInventory() {
+      const { data, error } = await supabase.from('tempered_inventory').select('*').order('created_at', { ascending: false });
+      const tbody = document.getElementById('inventory-list');
+      
+      if (error) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: var(--danger);">Error loading data</td></tr>`; return; }
+      if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding: 40px; color: var(--text-soft);">Inventory is empty. Add a model above.</td></tr>`; return; }
+
+      tbody.innerHTML = data.map(item => {
+        // Map UUIDs to Names safely
+        const deviceNames = (item.compatible_devices || []).map(id => {
+          const phone = masterPhones.find(p => p.id === id);
+          return phone ? phone.name : 'Unknown Device';
+        });
+
+        return `
+        <tr>
+          <td><strong style="color: var(--primary); font-size: 15px;">${item.glass_model}</strong></td>
+          <td><div class="inline-list">${deviceNames.map(d => `<span class="badge">${d}</span>`).join('')}</div></td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="btn-secondary" style="padding: 6px 12px; margin-right: 4px; font-size: 12px;" onclick='editGlass(${JSON.stringify(item)})'>✏️ Edit</button>
+            <button class="btn-secondary" style="padding: 6px 12px; font-size: 12px; color: var(--danger); border-color: rgba(239,68,68,0.3);" onclick="deleteGlass('${item.id}')">🗑️ Del</button>
+          </td>
+        </tr>
+      `}).join('');
+    }
+
+    async function saveGlass() {
+      const name = document.getElementById('glass-name').value.trim();
+      const id = document.getElementById('edit-id').value;
+      const btn = document.getElementById('save-btn');
+
+      if (!name) return showToast("Glass Name is required", true);
+      if (activeDevicesIds.length === 0) return showToast("Select at least 1 phone", true);
+
+      btn.innerText = "Saving..."; btn.disabled = true;
+      const payload = { glass_model: name, compatible_devices: activeDevicesIds };
+
+      let error;
+      if (id) {
+        const res = await supabase.from('tempered_inventory').update(payload).eq('id', id);
+        error = res.error;
+      } else {
+        const res = await supabase.from('tempered_inventory').insert([payload]);
+        error = res.error;
+      }
+
+      btn.innerText = id ? "Update Glass" : "Save Glass"; btn.disabled = false;
+
+      if (error) {
+        showToast(error.message.includes('unique') ? "Glass model already exists!" : "Error saving data.", true);
+      } else {
+        showToast(id ? "Model Updated!" : "New Model Added!");
+        resetGlassForm();
+        fetchInventory();
+      }
+    }
+
+    function editGlass(item) {
+      document.getElementById('form-title').innerText = "✏️ Edit Glass Model";
+      document.getElementById('edit-id').value = item.id;
+      document.getElementById('glass-name').value = item.glass_model;
+      document.getElementById('save-btn').innerText = "Update Glass";
+      document.getElementById('cancel-btn').style.display = "inline-block";
+      
+      activeDevicesIds = item.compatible_devices || [];
+      document.getElementById('phone-search').value = ''; 
+      renderCheckboxes(); 
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetGlassForm() {
+      document.getElementById('form-title').innerText = "Add New Glass Model";
+      document.getElementById('edit-id').value = "";
+      document.getElementById('glass-name').value = "";
+      document.getElementById('save-btn').innerText = "Save Glass";
+      document.getElementById('cancel-btn').style.display = "none";
+      document.getElementById('phone-search').value = '';
+      activeDevicesIds = [];
+      renderCheckboxes(); 
+    }
+
+    async function deleteGlass(id) {
+      if (await askConfirm("Delete Glass Model?", "This will remove it from the database permanently.")) {
+        const { error } = await supabase.from('tempered_inventory').delete().eq('id', id);
+        if(error) showToast("Failed to delete", true);
+        else { showToast("Model deleted!"); fetchInventory(); }
+      }
+    }
+
+    checkUser();
+  </script>
+</body>
+</html>
