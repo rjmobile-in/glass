@@ -166,27 +166,42 @@
     }
 
     let confirmResolve;
+
     function askConfirm(title, msg) {
       return new Promise((resolve) => {
+        // 1. Puraane button se focus hatao taaki double click na ho
+        if (document.activeElement) document.activeElement.blur(); 
+        
         document.getElementById('confirm-title').innerText = title;
         document.getElementById('confirm-msg').innerText = msg;
         document.getElementById('confirm-modal').style.display = 'flex';
+        
+        // 2. Focus sidha 'Delete' (Yes) button par le jao
+        document.getElementById('confirm-yes-btn').focus();
+        
         confirmResolve = resolve;
       });
     }
+
     function closeConfirm(result) {
       document.getElementById('confirm-modal').style.display = 'none';
-      if (confirmResolve) confirmResolve(result);
+      if (confirmResolve) {
+        confirmResolve(result);
+        confirmResolve = null; // Double fire hone se roke
+      }
     }
 
     // Keyboard ENTER Support
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         if (document.getElementById('confirm-modal').style.display === 'flex') {
+          e.preventDefault(); // 3. Enter ki default click behaviour block karein
           closeConfirm(true);
         } else if (document.getElementById('login-screen').style.display !== 'none') {
+          e.preventDefault();
           login();
         } else if (document.getElementById('view-phone').classList.contains('active') && document.activeElement.id === 'new-phone-name') {
+          e.preventDefault();
           savePhoneModel();
         }
       }
